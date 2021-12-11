@@ -6,6 +6,7 @@ import {
   GoogleTagManagerNoScript,
 } from "@builder.io/partytown/react"
 
+console.log(process.env.GTM_ID)
 export default function HTML(props) {
   return (
     <html {...props.htmlAttributes}>
