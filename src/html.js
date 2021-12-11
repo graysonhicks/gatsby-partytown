@@ -6,7 +6,7 @@ import {
   GoogleTagManagerNoScript,
 } from "@builder.io/partytown/react"
 
-console.log(process.env.GTM_ID)
+console.log(process.env.GATSBY_GTM_ID)
 export default function HTML(props) {
   return (
     <html {...props.htmlAttributes}>
@@ -18,12 +18,12 @@ export default function HTML(props) {
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
         {props.headComponents}
-        <GoogleTagManager containerId={process.env.GTM_ID} />
+        <GoogleTagManager containerId={process.env.GATSBY_GTM_ID} />
         <Partytown />
       </head>
       <body {...props.bodyAttributes}>
         {props.preBodyComponents}
-        <GoogleTagManagerNoScript containerId={process.env.GTM_ID} />
+        <GoogleTagManagerNoScript containerId={process.env.GATSBY_GTM_ID} />
         <div
           key={`body`}
           id="___gatsby"
