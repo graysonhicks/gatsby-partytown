@@ -22,7 +22,7 @@ export default function HTML(props) {
       </head>
       <body {...props.bodyAttributes}>
         {props.preBodyComponents}
-        <GoogleTagManagerNoScript containerId={"GTM-XXXXX"} />
+        <GoogleTagManagerNoScript containerId={process.env.GTM_ID} />
         <div
           key={`body`}
           id="___gatsby"
