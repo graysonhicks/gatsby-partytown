@@ -23,7 +23,7 @@ export default function HTML(props) {
         />
         {props.headComponents}
         <GoogleTagManager containerId={process.env.GATSBY_GTM_ID} />
-        <Partytown debug />
+        <Partytown />
       </head>
       <body {...props.bodyAttributes}>
         {props.preBodyComponents}
