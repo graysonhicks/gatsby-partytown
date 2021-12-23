@@ -18,6 +18,15 @@ module.exports = {
     `gatsby-transformer-sharp`,
     `gatsby-plugin-sharp`,
     {
+      resolve: "gatsby-plugin-gatsby-cloud",
+      options: {
+        headers: {
+          "Access-Control-Allow-Origin:":
+            "https://connect.facebook.net/en_US/fbevents.js",
+        },
+      },
+    },
+    {
       resolve: `gatsby-plugin-manifest`,
       options: {
         name: `gatsby-starter-default`,
