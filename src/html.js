@@ -17,6 +17,10 @@ export default function HTML(props) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
+        <meta
+          name="facebook-domain-verification"
+          content="p0e160pq9yfcx888l5bpo9svy1acgh"
+        />
         {props.headComponents}
         <GoogleTagManager containerId={process.env.GATSBY_GTM_ID} />
         <Partytown debug />
