@@ -24,7 +24,7 @@ export default function HTML(props) {
         {props.headComponents}
         <GoogleTagManager containerId={process.env.GATSBY_GTM_ID} />
         <FacebookPixel pixelId={process.env.GATSBY_PIXEL_ID} />
-        <Partytown />
+        <Partytown debug />
       </head>
       <body {...props.bodyAttributes}>
         {props.preBodyComponents}

@@ -1,4 +1,4 @@
-/* Partytown 0.0.24 - MIT builder.io */
+/* Partytown 0.0.31 - MIT builder.io */
 (self => {
     const WinIdKey = Symbol();
     const InstanceIdKey = Symbol();
@@ -76,7 +76,7 @@
                 n = "document.body.";
             } else if (target[NodeNameKey]) {
                 let nodeName = target[NodeNameKey];
-                n = "#text" === nodeName ? "textNode." : "#comment" === nodeName ? "commentNode." : "#document" === nodeName ? "document." : "html" === nodeName ? "doctype." : target.nodeName.toLowerCase() + "Element.";
+                n = "#text" === nodeName ? "textNode." : "#comment" === nodeName ? "commentNode." : "#document" === nodeName ? "document." : "html" === nodeName ? "doctype." : nodeName.toLowerCase() + "Element.";
             } else if (2 === target.nodeType) {
                 n = "attributes.";
             } else if ("CanvasRenderingContext2D" === cstrName) {
@@ -176,11 +176,10 @@
     });
     const EMPTY_ARRAY = [];
     const randomId = () => Math.round(9999999999 * Math.random() + 4);
-    const defineProperty = (obj, memberName, descriptor) => Object.defineProperty(obj, memberName, {
+    const definePrototypeProperty = (Cstr, memberName, descriptor) => ((obj, memberName, descriptor) => Object.defineProperty(obj, memberName, {
         ...descriptor,
         configurable: !0
-    });
-    const definePrototypeProperty = (Cstr, memberName, descriptor) => defineProperty(Cstr.prototype, memberName, descriptor);
+    }))(Cstr.prototype, memberName, descriptor);
     const definePrototypePropertyDescriptor = (Cstr, propertyDescriptorMap) => Object.defineProperties(Cstr.prototype, propertyDescriptorMap);
     const definePrototypeValue = (Cstr, memberName, value) => definePrototypeProperty(Cstr, memberName, {
         value: value,
@@ -374,9 +373,7 @@
         env.$currentScriptId$ = -1;
         return errorMsg;
     };
-    const run = (env, script) => {
-        new Function(`with(this){${script}}`).apply(env.$window$);
-    };
+    const run = (env, scriptContent, scriptUrl) => new Function(`with(this){${scriptContent.replace(/\bthis\b/g, "_ptthis(this)").replace(/\/\/# so/g, "//Xso")};function _ptthis(t){return t===this?window:t}}` + (scriptUrl ? "\n//# sourceURL=" + scriptUrl : "")).call(env.$window$);
     const runStateLoadHandlers = (instance, type, handlers) => {
         (handlers = getInstanceStateValue(instance, type)) && ((cb, ms) => {
             setTimeout(cb, ms);
@@ -384,7 +381,7 @@
             type: type
         })))));
     };
-    const resolveToUrl = (env, url, baseLocation) => {
+    const resolveToUrl = (env, url, noUserHook, baseLocation) => {
         baseLocation = env.$location$;
         while (!baseLocation.host) {
             baseLocation = (env = environments[env.$parentWinId$]).$location$;
@@ -393,7 +390,7 @@
             }
         }
         const resolvedUrl = new URL(url || "", baseLocation);
-        if (webWorkerCtx.$config$.resolveUrl) {
+        if (!noUserHook && webWorkerCtx.$config$.resolveUrl) {
             const configResolvedUrl = webWorkerCtx.$config$.resolveUrl(resolvedUrl, baseLocation);
             if (configResolvedUrl) {
                 return configResolvedUrl;
@@ -401,9 +398,9 @@
         }
         return resolvedUrl;
     };
-    const resolveUrl = (env, url) => resolveToUrl(env, url) + "";
+    const resolveUrl = (env, url, noUserHook) => resolveToUrl(env, url, noUserHook) + "";
     const getUrl = elm => resolveToUrl(getEnv(elm), getInstanceStateValue(elm, 4));
-    const getPartytownScript = () => `<script src=${JSON.stringify(webWorkerCtx.$libPath$ + "partytown.js")} async defer><\/script>`;
+    const getPartytownScript = () => `<script src=${JSON.stringify(webWorkerCtx.$libPath$ + "partytown.js")} async><\/script>`;
     const createImageConstructor = env => class HTMLImageElement {
         constructor() {
             this.s = "";
@@ -415,7 +412,7 @@
         }
         set src(src) {
             webWorkerCtx.$config$.logImageRequests && logWorker(`Image() request: ${resolveUrl(env, src)}`, env.$winId$);
-            fetch(resolveUrl(env, src), {
+            fetch(resolveUrl(env, src, !0), {
                 mode: "no-cors",
                 keepalive: !0
             }).then((rsp => {
@@ -504,6 +501,7 @@
                     }
                 }, envCstrName);
             }
+            "trustedTypes" in self && (this.trustedTypes = self.trustedTypes);
             const win = new Proxy(this, {
                 has: () => !0
             });
@@ -529,15 +527,6 @@
             this.cancelIdleCallback = id => clearTimeout(id);
             addStorageApi(this, "localStorage", webWorkerCtx.$localStorage$);
             addStorageApi(this, "sessionStorage", webWorkerCtx.$sessionStorage$);
-            defineProperty(this.performance, "timing", {
-                get: () => {
-                    const timing = getter(this, [ "performance", "timing" ]);
-                    return timing ? {
-                        ...timing,
-                        toJSON: () => timing
-                    } : void 0;
-                }
-            });
             return win;
         }
         get Audio() {
@@ -593,13 +582,13 @@
                 navigator.sendBeacon = (url, body) => {
                     if (webWorkerCtx.$config$.logSendBeaconRequests) {
                         try {
-                            logWorker(`sendBeacon: ${resolveUrl(env, url)}${body ? ", data: " + JSON.stringify(body) : ""}`);
+                            logWorker(`sendBeacon: ${resolveUrl(env, url, !0)}${body ? ", data: " + JSON.stringify(body) : ""}`);
                         } catch (e) {
                             console.error(e);
                         }
                     }
                     try {
-                        fetch(resolveUrl(env, url), {
+                        fetch(resolveUrl(env, url, !0), {
                             method: "POST",
                             body: body,
                             mode: "no-cors",
@@ -642,6 +631,7 @@
             logWorker(`Created ${$winId$ === $parentWinId$ ? "top" : "iframe"} window ${normalizedWinId($winId$)} environment (${$winId$})`, $winId$);
         }
         webWorkerCtx.$postMessage$([ 6, $winId$ ]);
+        return environments[$winId$];
     };
     const getEnv = instance => environments[instance[WinIdKey]];
     class Node extends WorkerProxy {
@@ -668,29 +658,29 @@
                 }
             }
             callMethod(this, [ "insertBefore" ], [ newNode, referenceNode ]);
-            isIFrame && (iframe => {
+            isIFrame && ((winId, iframe) => {
                 let i = 0;
-                const winId = iframe[InstanceIdKey];
+                let type;
+                let handlers;
                 setter(iframe, [ "dataset", "ptwindow" ], winId);
                 const callback = () => {
                     if (environments[winId] && environments[winId].$isInitialized$) {
-                        let type = getInstanceStateValue(iframe, 1) ? "error" : "load";
-                        let handlers = getInstanceStateValue(iframe, type);
+                        type = getInstanceStateValue(iframe, 1) ? "error" : "load";
+                        handlers = getInstanceStateValue(iframe, type);
                         handlers && handlers.map((handler => handler({
                             type: type
                         })));
                     } else if (i++ > 2e3) {
-                        let errorHandlers = getInstanceStateValue(iframe, "error");
-                        errorHandlers && errorHandlers.map((handler => handler({
+                        handlers = getInstanceStateValue(iframe, "error");
+                        handlers && handlers.map((handler => handler({
                             type: "error"
                         })));
-                        console.error(`Iframe timeout: ${winId}`);
                     } else {
                         setTimeout(callback, 9);
                     }
                 };
                 callback();
-            })(newNode);
+            })(instanceId, newNode);
             if (isScript) {
                 sendToMain(!0);
                 webWorkerCtx.$postMessage$([ 6, winId ]);
@@ -766,7 +756,7 @@
                 return "number" == typeof value[InstanceIdKey] ? [ 6, {
                     $winId$: value[WinIdKey],
                     $instanceId$: value[InstanceIdKey]
-                } ] : value instanceof Event ? [ 4, serializeObjectForMain($winId$, $instanceId$, value, !1, added) ] : [ 8, serializeObjectForMain($winId$, $instanceId$, value, !0, added) ];
+                } ] : value instanceof Event ? [ 4, serializeObjectForMain($winId$, $instanceId$, value, !1, added) ] : "undefined" != typeof TrustedHTML && value instanceof TrustedHTML ? [ 9, value.toString() ] : [ 8, serializeObjectForMain($winId$, $instanceId$, value, !0, added) ];
             }
         }
     };
@@ -897,7 +887,7 @@
                         $winId$: instanceId,
                         $parentWinId$: winId,
                         $url$: "about:blank"
-                    });
+                    }).$window$.fetch = fetch;
                     setter(elm, [ "srcdoc" ], getPartytownScript());
                 } else {
                     "SCRIPT" === tagName && setter(elm, [ "type" ], "text/partytown");
@@ -1163,9 +1153,12 @@
                 return getInstanceStateValue(this, 4) || "";
             },
             set(url) {
-                url = resolveUrl(getEnv(this), url);
+                const env = getEnv(this);
+                const orgUrl = resolveUrl(env, url, !0);
+                url = resolveUrl(env, url);
                 setInstanceStateValue(this, 4, url);
                 setter(this, [ "src" ], url);
+                orgUrl !== url && setter(this, [ "dataset", "ptsrc" ], orgUrl);
             }
         },
         getAttribute: {
@@ -1232,7 +1225,7 @@
         const DocumentFragment = self.DocumentFragment;
         const Element = self.Element;
         (() => {
-            "atob,btoa,crypto,indexedDB,performance,setTimeout,setInterval,clearTimeout,clearInterval".split(",").map((memberName => delete Window.prototype[memberName]));
+            "atob,btoa,crypto,indexedDB,setTimeout,setInterval,clearTimeout,clearInterval".split(",").map((memberName => delete Window.prototype[memberName]));
         })();
         definePrototypePropertyDescriptor(Element, ElementDescriptorMap);
         definePrototypePropertyDescriptor(Document, DocumentDescriptorMap);
@@ -1308,6 +1301,11 @@
             return dimensions;
         };
     }));
+    class Performance extends WorkerProxy {
+        now() {
+            return performance.now();
+        }
+    }
     const queuedEvents = [];
     const receiveMessageFromSandboxToWorker = ev => {
         const msg = ev.data;
@@ -1320,29 +1318,26 @@
                     let instance = getOrCreateNodeInstance(winId, instanceId, "SCRIPT");
                     let scriptContent = initScript.$content$;
                     let scriptSrc = initScript.$url$;
+                    let scriptOrgSrc = initScript.$orgUrl$;
                     let errorMsg = "";
                     let env = environments[winId];
                     let rsp;
-                    let scriptUrl;
                     if (scriptSrc) {
                         try {
-                            scriptUrl = resolveToUrl(env, scriptSrc);
-                            scriptSrc = scriptUrl + "";
+                            scriptSrc = resolveToUrl(env, scriptSrc) + "";
                             setInstanceStateValue(instance, 4, scriptSrc);
-                            webWorkerCtx.$config$.logScriptExecution && logWorker(`Execute script (${instanceId}) src: ${scriptSrc}`, winId);
+                            webWorkerCtx.$config$.logScriptExecution && logWorker(`Execute script (${instanceId}) src: ${scriptOrgSrc}`, winId);
                             rsp = await self.fetch(scriptSrc);
                             if (rsp.ok) {
                                 scriptContent = await rsp.text();
                                 env.$currentScriptId$ = instanceId;
-                                run(env, scriptContent);
+                                run(env, scriptContent, scriptOrgSrc || scriptSrc);
                                 runStateLoadHandlers(instance, "load");
                             } else {
-                                console.error(rsp.status, "url:", scriptSrc);
                                 errorMsg = rsp.statusText;
                                 runStateLoadHandlers(instance, "error");
                             }
                         } catch (urlError) {
-                            console.error("url:", scriptSrc, urlError);
                             errorMsg = String(urlError.stack || urlError) + "";
                             runStateLoadHandlers(instance, "error");
                         }
@@ -1365,13 +1360,14 @@
                     }
                 })(msg[1]);
             } else if (8 === msgType) {
-                (({$winId$: $winId$, $instanceId$: $instanceId$, $forward$: $forward$, $args$: $args$}) => {
+                (({$winId$: $winId$, $forward$: $forward$, $args$: $args$}) => {
                     try {
-                        const win = environments[$winId$].$window$;
-                        const target = $forward$[0] in win ? win : $forward$[0] in self ? self : {};
-                        const args = deserializeFromMain($instanceId$, [], $args$);
-                        const globalProperty = target[$forward$[0]];
-                        Array.isArray(globalProperty) ? globalProperty.push(...args) : "function" == typeof globalProperty && globalProperty.apply(target, args);
+                        let target = environments[$winId$].$window$;
+                        let i = 0;
+                        let l = len($forward$);
+                        for (;i < l; i++) {
+                            i + 1 < l ? target = target[$forward$[i]] : target[$forward$[i]].apply(target, deserializeFromMain(0, [], $args$));
+                        }
                     } catch (e) {
                         console.error(e);
                     }
@@ -1398,13 +1394,13 @@
                 webWorkerCtx.$libPath$ = initWebWorkerData.$libPath$;
                 webWorkerCtx.$localStorage$ = initWebWorkerData.$localStorage$;
                 webWorkerCtx.$sessionStorage$ = initWebWorkerData.$sessionStorage$;
-                webWorkerCtx.$forwardedTriggers$ = (config.forward || EMPTY_ARRAY).map((f => f[0]));
                 webWorkerCtx.$postMessage$ = postMessage.bind(self);
                 webWorkerCtx.$sharedDataBuffer$ = initWebWorkerData.$sharedDataBuffer$;
                 self.postMessage = self.importScripts = void 0;
                 self.Node = Node;
                 self.Window = Window;
                 self.CSSStyleSheet = CSSStyleSheet;
+                self.Performance = Performance;
                 initWebWorkerData.$interfaces$.map(defineWorkerInterface);
                 patchPrototypes();
                 webWorkerCtx.$isInitialized$ = 1;

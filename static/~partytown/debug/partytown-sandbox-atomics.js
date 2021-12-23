@@ -1,4 +1,4 @@
-/* Partytown 0.0.24 - MIT builder.io */
+/* Partytown 0.0.31 - MIT builder.io */
 const isPromise = v => "object" == typeof v && v && v.then;
 
 const noop = () => !0;
@@ -225,7 +225,8 @@ const mainAccessHandler = async (worker, accessReq) => {
                     }
                     accessRsp.$rtnValue$ = serializeForWorker(winId, rtnValue);
                 } else {
-                    accessRsp.$error$ = instanceId + " not found";
+                    accessRsp.$error$ = `Error finding instance "${instanceId}" on window ${normalizedWinId(winId)} (${winId})`;
+                    console.error(accessRsp.$error$);
                 }
             }
         } catch (e) {
@@ -326,23 +327,35 @@ const readNextScript = (worker, winCtx) => {
             $winId$: $winId$,
             $instanceId$: $instanceId$
         };
-        scriptElm.src ? scriptData.$url$ = scriptElm.src : scriptData.$content$ = scriptElm.innerHTML;
+        if (scriptElm.src) {
+            scriptData.$url$ = scriptElm.src;
+            scriptData.$orgUrl$ = scriptElm.dataset.ptsrc || scriptElm.src;
+        } else {
+            scriptData.$content$ = scriptElm.innerHTML;
+        }
         worker.postMessage([ 6, scriptData ]);
     } else if (!winCtx.$isInitialized$) {
         winCtx.$isInitialized$ = 1;
         ((worker, $winId$, win) => {
-            let existingTriggers = win._ptf;
-            let forwardTriggers = win._ptf = [];
-            let i = 0;
-            forwardTriggers.push = ($forward$, $args$) => worker.postMessage([ 8, {
+            let queuedForwardCalls = win._ptf;
+            let forwards = (win.partytown || {}).forward || [];
+            let i;
+            let mainForwardFn;
+            let forwardCall = ($forward$, args) => worker.postMessage([ 8, {
                 $winId$: $winId$,
-                $instanceId$: 0,
                 $forward$: $forward$,
-                $args$: serializeForWorker($winId$, Array.from($args$))
+                $args$: serializeForWorker($winId$, Array.from(args))
             } ]);
-            if (existingTriggers) {
-                for (;i < len(existingTriggers); i += 2) {
-                    forwardTriggers.push(existingTriggers[i], existingTriggers[i + 1]);
+            win._ptf = void 0;
+            forwards.map((forwardProps => {
+                mainForwardFn = win;
+                forwardProps.split(".").map(((_, i, arr) => {
+                    mainForwardFn = mainForwardFn[arr[i]] = i + 1 < len(arr) ? mainForwardFn[arr[i]] || ("push" === arr[i + 1] ? [] : {}) : (...args) => forwardCall(arr, args);
+                }));
+            }));
+            if (queuedForwardCalls) {
+                for (i = 0; i < len(queuedForwardCalls); i += 2) {
+                    forwardCall(queuedForwardCalls[i], queuedForwardCalls[i + 1]);
                 }
             }
         })(worker, $winId$, win);
@@ -445,11 +458,13 @@ const createMessengerAtomics = async (sandboxWindow, receiveMessage) => {
                 const canvasRenderingContext2D = docImpl.createElement("canvas").getContext("2d");
                 const mutationObserver = new MutationObserver(noop);
                 const resizeObserver = new ResizeObserver(noop);
+                const perf = win.performance;
+                const screen = win.screen;
                 const elms = Object.getOwnPropertyNames(win).filter((c => /^HTML.+Element$/.test(c))).map((htmlCstrName => {
                     const htmlTagName = getHtmlTagNameFromConstructor(htmlCstrName);
                     return [ docImpl.createElement(htmlTagName) ];
                 }));
-                const impls = [ [ win.history ], [ win.screen ], [ win.screen.orientation ], [ mutationObserver, 12 ], [ resizeObserver, 12 ], [ textNode ], [ comment ], [ frag ], [ elm ], [ elm.attributes ], [ elm.classList ], [ elm.dataset ], [ elm.style ], [ svg ], [ docImpl ], [ docImpl.doctype ], [ canvasRenderingContext2D ], ...elms ].filter((implData => implData[0])).map((implData => {
+                const impls = [ [ win.history ], [ perf ], [ perf.navigation ], [ perf.timing ], [ screen ], [ screen.orientation ], [ mutationObserver, 12 ], [ resizeObserver, 12 ], [ textNode ], [ comment ], [ frag ], [ elm ], [ elm.attributes ], [ elm.classList ], [ elm.dataset ], [ elm.style ], [ svg ], [ docImpl ], [ docImpl.doctype ], [ canvasRenderingContext2D ], ...elms ].filter((implData => implData[0])).map((implData => {
                     const impl = implData[0];
                     const interfaceType = implData[1];
                     const cstrName = impl.constructor.name;
@@ -503,7 +518,7 @@ const createMessengerAtomics = async (sandboxWindow, receiveMessage) => {
             const msg = ev.data;
             10 === msg[0] ? mainAccessHandler(worker, msg[1]) : onMessageHandler(worker, mainWindow, msg);
         };
-        logMain("Created web worker");
+        logMain("Created Partytown web worker (0.0.31)");
         worker.onerror = ev => console.error("Web Worker Error", ev);
         mainWindow.addEventListener("pt1", (ev => {
             const win = ev.detail;

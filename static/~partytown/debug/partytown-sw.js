@@ -1,4 +1,4 @@
-/* Partytown 0.0.24 - MIT builder.io */
+/* Partytown 0.0.31 - MIT builder.io */
 const resolves = new Map;
 
 const swMessageError = (accessReq, $error$) => ({
