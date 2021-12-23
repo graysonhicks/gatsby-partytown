@@ -4,9 +4,9 @@ import {
   Partytown,
   GoogleTagManager,
   GoogleTagManagerNoScript,
+  FacebookPixel,
 } from "@builder.io/partytown/react"
 
-console.log(process.env.GATSBY_GTM_ID)
 export default function HTML(props) {
   return (
     <html {...props.htmlAttributes}>
@@ -23,6 +23,7 @@ export default function HTML(props) {
         />
         {props.headComponents}
         <GoogleTagManager containerId={process.env.GATSBY_GTM_ID} />
+        <FacebookPixel pixelId={process.env.GATSBY_PIXEL_ID} />
         <Partytown />
       </head>
       <body {...props.bodyAttributes}>
