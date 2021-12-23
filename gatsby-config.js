@@ -21,9 +21,7 @@ module.exports = {
       resolve: "gatsby-plugin-gatsby-cloud",
       options: {
         headers: {
-          "/*": [
-            "Access-Control-Allow-Origin: https://connect.facebook.net/en_US/fbevents.js",
-          ],
+          "/*": ["Access-Control-Allow-Origin: *"],
         },
       },
     },
